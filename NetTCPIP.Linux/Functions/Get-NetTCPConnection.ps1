@@ -35,29 +35,33 @@ function Get-NetTCPConnection {
             $parts = $line -split '\s+', 6
             if ($parts.Count -lt 5) { continue }
 
-            $stateRaw  = $parts[0]
-            $localFull  = $parts[3]
-            $remoteFull = $parts[4]
+            $stateRaw    = $parts[0]
+            $localFull   = $parts[3]
+            $remoteFull  = $parts[4]
             $processPart = if ($parts.Count -ge 6) { $parts[5] } else { '' }
 
-            # Parse local addr:port
-            $localAddr = $localPort = $null
+            # Parse local addr:port — use _-prefixed names to avoid clobbering parameters
+            $_localAddr = $_localPort = $null
             if ($localFull -match '^(.*):(\d+)$') {
-                $localAddr = $Matches[1]
-                $localPort = [uint16]$Matches[2]
+                $_localAddr = $Matches[1]
+                $_localPort = [uint16]$Matches[2]
             } elseif ($localFull -match '^\[(.+)\]:(\d+)$') {
-                $localAddr = $Matches[1]
-                $localPort = [uint16]$Matches[2]
+                $_localAddr = $Matches[1]
+                $_localPort = [uint16]$Matches[2]
             } else { continue }
 
-            # Parse remote addr:port
-            $remoteAddr = $remotePort = $null
+            # Parse remote addr:port  (LISTEN sockets use '*' as the remote port)
+            $_remoteAddr = $_remotePort = $null
             if ($remoteFull -match '^(.*):(\d+)$') {
-                $remoteAddr = $Matches[1]
-                $remotePort = [uint16]$Matches[2]
+                $_remoteAddr = $Matches[1]
+                $_remotePort = [uint16]$Matches[2]
             } elseif ($remoteFull -match '^\[(.+)\]:(\d+)$') {
-                $remoteAddr = $Matches[1]
-                $remotePort = [uint16]$Matches[2]
+                $_remoteAddr = $Matches[1]
+                $_remotePort = [uint16]$Matches[2]
+            } elseif ($remoteFull -match '^(.*):\*$') {
+                # LISTEN sockets report remote port as '*'
+                $_remoteAddr = $Matches[1]
+                $_remotePort = [uint16]0
             } else { continue }
 
             # Map ss state to Windows TCP state names
@@ -75,21 +79,21 @@ function Get-NetTCPConnection {
                 'CLOSED'      = 'Closed'
                 'UNCONN'      = 'Closed'
             }
-            $stateMapped = if ($stateMap.ContainsKey($stateRaw)) { $stateMap[$stateRaw] } else { $stateRaw }
+            $_stateMapped = if ($stateMap.ContainsKey($stateRaw)) { $stateMap[$stateRaw] } else { $stateRaw }
 
-            # Parse PID from users:(("name",pid=NNN,...))
-            $pid = 0
+            # Parse PID from users:(("name",pid=NNN,...)) — avoid shadowing $PID automatic variable
+            $_owningPid = [uint32]0
             if ($processPart -match 'pid=(\d+)') {
-                $pid = [uint32]$Matches[1]
+                $_owningPid = [uint32]$Matches[1]
             }
 
             [PSCustomObject]@{
-                LocalAddress   = $localAddr
-                LocalPort      = $localPort
-                RemoteAddress  = $remoteAddr
-                RemotePort     = $remotePort
-                State          = $stateMapped
-                OwningProcess  = $pid
+                LocalAddress   = $_localAddr
+                LocalPort      = $_localPort
+                RemoteAddress  = $_remoteAddr
+                RemotePort     = $_remotePort
+                State          = $_stateMapped
+                OwningProcess  = $_owningPid
                 CreationTime   = $null
                 OffloadState   = 'InHost'
             }
