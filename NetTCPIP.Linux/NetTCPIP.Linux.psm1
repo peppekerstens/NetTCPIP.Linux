@@ -1,5 +1,19 @@
+#Requires -Version 7.2
+
 # NetTCPIP.Linux.psm1
-# Dot-source all function files (excluding Pester test files)
+# Root module for NetTCPIP.Linux.
+# Dot-sources all function files from the Functions\ subdirectory.
+
+# Linux-only guard — this module wraps Linux CLI tools (ip, ss) and must not
+# be loaded on Windows. On Windows, use the built-in NetTCPIP module instead:
+#   Import-Module NetTCPIP
+if (-not $IsLinux) {
+    throw (
+        "NetTCPIP.Linux cannot be loaded on Windows. " +
+        "On Windows, use the built-in 'NetTCPIP' module: Import-Module NetTCPIP`n" +
+        "NetTCPIP.Linux is a Linux-only peer module that wraps ip and ss."
+    )
+}
 
 Get-ChildItem -Path "$PSScriptRoot\Functions" -Filter '*.ps1' |
     Where-Object { $_.Name -notlike '*.Tests.ps1' } |

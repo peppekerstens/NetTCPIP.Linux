@@ -1,32 +1,20 @@
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.2.0' }
 
 <#
 .SYNOPSIS
     Pester tests for NetTCPIP.Linux module.
 .DESCRIPTION
-    Tests module surface (function count, aliases) and implemented cmdlet behavior on Linux.
-    Linux-only contexts are skipped when running on Windows.
+    Tests module surface (function count), implemented cmdlet behaviour on Linux,
+    and per-stub exported/no-throw/emits-warning checks.
+    All tests require Linux — the module refuses to load on Windows by design.
+    Describe blocks that require the module are skipped automatically on Windows.
+    Run with: Invoke-Pester ./NetTCPIP.Linux.Tests.ps1 -Output Detailed
 #>
 
-BeforeAll {
-    $ModulePath = Join-Path $PSScriptRoot 'NetTCPIP.Linux.psd1'
-    Import-Module $ModulePath -Force
-}
+BeforeDiscovery {
+    $script:OnLinux = $IsLinux
 
-AfterAll {
-    Remove-Module NetTCPIP.Linux -ErrorAction SilentlyContinue
-}
-
-Describe 'NetTCPIP.Linux module surface' {
-    It 'exports exactly 34 functions' {
-        (Get-Module NetTCPIP.Linux).ExportedFunctions.Count | Should -Be 34
-    }
-
-    It 'exports 0 aliases' {
-        (Get-Module NetTCPIP.Linux).ExportedAliases.Count | Should -Be 0
-    }
-
-    $expectedFunctions = @(
+    $script:ExpectedFunctions = @(
         'Get-NetIPAddress', 'Get-NetIPConfiguration', 'Get-NetRoute', 'Get-NetTCPConnection',
         'Find-NetRoute', 'Get-NetCompartment', 'Get-NetIPInterface',
         'Get-NetIPv4Protocol', 'Get-NetIPv6Protocol', 'Get-NetNeighbor',
@@ -39,14 +27,51 @@ Describe 'NetTCPIP.Linux module surface' {
         'Set-NetUDPSetting', 'Test-NetConnection'
     )
 
-    foreach ($fn in $expectedFunctions) {
-        It "exports function '$fn'" {
-            (Get-Module NetTCPIP.Linux).ExportedFunctions.Keys | Should -Contain $fn
-        }
+    $script:StubFunctions = @(
+        'Find-NetRoute', 'Get-NetCompartment', 'Get-NetIPInterface',
+        'Get-NetIPv4Protocol', 'Get-NetIPv6Protocol', 'Get-NetNeighbor',
+        'Get-NetOffloadGlobalSetting', 'Get-NetPrefixPolicy', 'Get-NetTCPSetting',
+        'Get-NetTransportFilter', 'Get-NetUDPEndpoint', 'Get-NetUDPSetting',
+        'New-NetIPAddress', 'New-NetNeighbor', 'New-NetRoute', 'New-NetTransportFilter',
+        'Remove-NetIPAddress', 'Remove-NetNeighbor', 'Remove-NetRoute', 'Remove-NetTransportFilter',
+        'Set-NetIPAddress', 'Set-NetIPInterface', 'Set-NetIPv4Protocol', 'Set-NetIPv6Protocol',
+        'Set-NetNeighbor', 'Set-NetOffloadGlobalSetting', 'Set-NetRoute', 'Set-NetTCPSetting',
+        'Set-NetUDPSetting', 'Test-NetConnection'
+    )
+}
+
+BeforeAll {
+    if ($IsLinux) {
+        $ModulePath = Join-Path $PSScriptRoot 'NetTCPIP.Linux.psd1'
+        Import-Module $ModulePath -Force
     }
 }
 
-Describe 'Get-NetIPAddress' -Skip:(-not $IsLinux) {
+AfterAll {
+    if ($IsLinux) {
+        Remove-Module NetTCPIP.Linux -ErrorAction SilentlyContinue
+    }
+}
+
+# ---------------------------------------------------------------------------
+Describe 'NetTCPIP.Linux module surface' -Skip:(-not $script:OnLinux) {
+
+    It 'exports exactly 34 functions' {
+        (Get-Module NetTCPIP.Linux).ExportedFunctions.Count | Should -Be 34
+    }
+
+    It 'exports 0 aliases' {
+        (Get-Module NetTCPIP.Linux).ExportedAliases.Count | Should -Be 0
+    }
+
+    It "exports function '<Name>'" -ForEach ($script:ExpectedFunctions | ForEach-Object { @{ Name = $_ } }) {
+        (Get-Module NetTCPIP.Linux).ExportedFunctions.Keys | Should -Contain $Name
+    }
+}
+
+# ---------------------------------------------------------------------------
+Describe 'Get-NetIPAddress' -Skip:(-not $script:OnLinux) {
+
     It 'returns results without error' {
         { Get-NetIPAddress } | Should -Not -Throw
     }
@@ -60,7 +85,7 @@ Describe 'Get-NetIPAddress' -Skip:(-not $IsLinux) {
         $result.PSObject.Properties.Name | Should -Contain 'PrefixLength'
     }
 
-    It 'returns IPv4 addresses' {
+    It 'returns IPv4 addresses when filtered' {
         $result = Get-NetIPAddress -AddressFamily IPv4
         $result | Should -Not -BeNullOrEmpty
         $result | ForEach-Object { $_.AddressFamily | Should -Be 'IPv4' }
@@ -74,7 +99,9 @@ Describe 'Get-NetIPAddress' -Skip:(-not $IsLinux) {
     }
 }
 
-Describe 'Get-NetRoute' -Skip:(-not $IsLinux) {
+# ---------------------------------------------------------------------------
+Describe 'Get-NetRoute' -Skip:(-not $script:OnLinux) {
+
     It 'returns results without error' {
         { Get-NetRoute } | Should -Not -Throw
     }
@@ -96,7 +123,9 @@ Describe 'Get-NetRoute' -Skip:(-not $IsLinux) {
     }
 }
 
-Describe 'Get-NetTCPConnection' -Skip:(-not $IsLinux) {
+# ---------------------------------------------------------------------------
+Describe 'Get-NetTCPConnection' -Skip:(-not $script:OnLinux) {
+
     It 'returns results without error' {
         { Get-NetTCPConnection } | Should -Not -Throw
     }
@@ -118,7 +147,9 @@ Describe 'Get-NetTCPConnection' -Skip:(-not $IsLinux) {
     }
 }
 
-Describe 'Get-NetIPConfiguration' -Skip:(-not $IsLinux) {
+# ---------------------------------------------------------------------------
+Describe 'Get-NetIPConfiguration' -Skip:(-not $script:OnLinux) {
+
     It 'returns results without error' {
         { Get-NetIPConfiguration } | Should -Not -Throw
     }
@@ -133,33 +164,19 @@ Describe 'Get-NetIPConfiguration' -Skip:(-not $IsLinux) {
     }
 }
 
-Describe 'Stub functions' {
-    $stubs = @(
-        'Find-NetRoute', 'Get-NetCompartment', 'Get-NetIPInterface',
-        'Get-NetIPv4Protocol', 'Get-NetIPv6Protocol', 'Get-NetNeighbor',
-        'Get-NetOffloadGlobalSetting', 'Get-NetPrefixPolicy', 'Get-NetTCPSetting',
-        'Get-NetTransportFilter', 'Get-NetUDPEndpoint', 'Get-NetUDPSetting',
-        'New-NetIPAddress', 'New-NetNeighbor', 'New-NetRoute', 'New-NetTransportFilter',
-        'Remove-NetIPAddress', 'Remove-NetNeighbor', 'Remove-NetRoute', 'Remove-NetTransportFilter',
-        'Set-NetIPAddress', 'Set-NetIPInterface', 'Set-NetIPv4Protocol', 'Set-NetIPv6Protocol',
-        'Set-NetNeighbor', 'Set-NetOffloadGlobalSetting', 'Set-NetRoute', 'Set-NetTCPSetting',
-        'Set-NetUDPSetting', 'Test-NetConnection'
-    )
+# ---------------------------------------------------------------------------
+Describe 'Stub functions' -Skip:(-not $script:OnLinux) {
 
-    foreach ($fn in $stubs) {
-        It "'$fn' is exported" {
-            (Get-Module NetTCPIP.Linux).ExportedFunctions.Keys | Should -Contain $fn
-        }
+    It "'<Name>' is exported" -ForEach ($script:StubFunctions | ForEach-Object { @{ Name = $_ } }) {
+        (Get-Module NetTCPIP.Linux).ExportedFunctions.Keys | Should -Contain $Name
+    }
 
-        if ($IsLinux) {
-            It "'$fn' does not throw on Linux" {
-                { & $fn } | Should -Not -Throw
-            }
+    It "'<Name>' does not throw" -ForEach ($script:StubFunctions | ForEach-Object { @{ Name = $_ } }) {
+        { & $Name -WarningAction SilentlyContinue } | Should -Not -Throw
+    }
 
-            It "'$fn' emits a warning on Linux" {
-                $warnings = & { & $fn } 3>&1 | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
-                $warnings | Should -Not -BeNullOrEmpty
-            }
-        }
+    It "'<Name>' emits a not-implemented warning" -ForEach ($script:StubFunctions | ForEach-Object { @{ Name = $_ } }) {
+        & $Name -WarningVariable w -WarningAction SilentlyContinue
+        $w | Should -Not -BeNullOrEmpty
     }
 }
