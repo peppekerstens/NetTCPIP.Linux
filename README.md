@@ -1,6 +1,6 @@
 # NetTCPIP.Linux
 
-PowerShell 7.x module providing cmdlet parity with the Windows `NetTCPIP` module on Linux. Wraps native Linux networking tools (`ip`, `ss`) to deliver a familiar PowerShell experience for IP address, routing and TCP connection management.
+PowerShell 7.x module providing cmdlet parity with the Windows `NetTCPIP` and `DnsClient` modules on Linux. Wraps native Linux networking tools (`ip`, `ss`, `dig`, `resolvectl`) to deliver a familiar PowerShell experience for IP address, routing, TCP connection management, and DNS resolution.
 
 Part of the **Linux PowerShell Cmdlet Parity** project — inspired by Evgenij Smirnov's [2025 European PowerShell Summit session](https://www.youtube.com/watch?v=RlzinWYIjBY) and documented in the blog series at [peppekerstens.github.io](https://peppekerstens.github.io/linux-command-wrapping-part-1/).
 
@@ -8,9 +8,9 @@ Part of the **Linux PowerShell Cmdlet Parity** project — inspired by Evgenij S
 
 ## What it does
 
-On **Linux**, wraps `ip` and `ss` to provide PowerShell cmdlets matching the Windows `NetTCPIP` module API as closely as possible. All 34 cmdlets that the Windows module exports are present — 4 are fully implemented, the remaining 30 are stubs that emit a warning on Linux.
+On **Linux**, wraps `ip`, `ss`, `dig`, and `resolvectl` to provide PowerShell cmdlets matching the Windows `NetTCPIP` and `DnsClient` module APIs as closely as possible. All 55 cmdlets that the two Windows modules export are present — 8 are fully implemented, the remaining 47 are stubs that emit a warning on Linux.
 
-On **Windows**, every function delegates transparently to the built-in `NetTCPIP` cmdlet — no behavioral change.
+On **Windows**, every function delegates transparently to the built-in cmdlets — no behavioral change.
 
 ---
 
@@ -19,6 +19,8 @@ On **Windows**, every function delegates transparently to the built-in `NetTCPIP
 - PowerShell 7.2+
 - **Linux only** — the module refuses to load on Windows (throws a descriptive error)
 - Linux with `iproute2` (`ip`, `ss`) — installed by default on Ubuntu 24.04
+- `dig` (package: `dnsutils` / `bind9-dnsutils`) for `Resolve-DnsName`
+- `resolvectl` (systemd-resolved) or `nscd` for `Clear-DnsClientCache`
 
 ---
 
@@ -54,6 +56,18 @@ Get-NetTCPConnection -State Listen
 
 # Network configuration summary per interface
 Get-NetIPConfiguration
+
+# Resolve a hostname (A records)
+Resolve-DnsName -Name 'dns.google' -Type A
+
+# Show configured DNS servers per interface
+Get-DnsClientServerAddress
+
+# Show DNS search suffix list
+Get-DnsClientGlobalSetting
+
+# Flush the DNS cache
+Clear-DnsClientCache
 ```
 
 ---
@@ -99,6 +113,32 @@ Legend: ✅ Implemented &nbsp;|&nbsp; ⚠️ Stub
 | `Set-NetUDPSetting` | ⚠️ | Stub | |
 | `Test-NetConnection` | ⚠️ | Stub | Future: `ping` / `nc` |
 
+### DnsClient cmdlets
+
+| Cmdlet | Status | Linux tool | Notes |
+|---|:---:|---|---|
+| `Resolve-DnsName` | ✅ | `dig` | A, AAAA, CNAME, MX, NS, TXT, SOA, PTR; `-Name`, `-Type`, `-Server` parameters; skips gracefully if `dig` missing |
+| `Clear-DnsClientCache` | ✅ | `resolvectl flush-caches` | Falls back to `nscd --invalidate=hosts`; supports `-WhatIf` / `-Confirm` |
+| `Get-DnsClientServerAddress` | ✅ | `/etc/resolv.conf` + `resolvectl status` | Returns per-interface DNS server list with InterfaceAlias, AddressFamily, ServerAddresses |
+| `Get-DnsClientGlobalSetting` | ✅ | `/etc/resolv.conf` + `resolvectl status` | Returns SuffixSearchList from search/domain lines |
+| `Add-DnsClientDohServerAddress` | ⚠️ | Stub | |
+| `Add-DnsClientNrptRule` | ⚠️ | Stub | |
+| `Get-DnsClient` | ⚠️ | Stub | |
+| `Get-DnsClientCache` | ⚠️ | Stub | |
+| `Get-DnsClientDohServerAddress` | ⚠️ | Stub | |
+| `Get-DnsClientNrptGlobal` | ⚠️ | Stub | |
+| `Get-DnsClientNrptPolicy` | ⚠️ | Stub | |
+| `Get-DnsClientNrptRule` | ⚠️ | Stub | |
+| `Register-DnsClient` | ⚠️ | Stub | |
+| `Remove-DnsClientDohServerAddress` | ⚠️ | Stub | |
+| `Remove-DnsClientNrptRule` | ⚠️ | Stub | |
+| `Set-DnsClient` | ⚠️ | Stub | |
+| `Set-DnsClientDohServerAddress` | ⚠️ | Stub | |
+| `Set-DnsClientGlobalSetting` | ⚠️ | Stub | |
+| `Set-DnsClientNrptGlobal` | ⚠️ | Stub | |
+| `Set-DnsClientNrptRule` | ⚠️ | Stub | |
+| `Set-DnsClientServerAddress` | ⚠️ | Stub | |
+
 ---
 
 ## Implementation notes
@@ -108,12 +148,20 @@ Legend: ✅ Implemented &nbsp;|&nbsp; ⚠️ Stub
 - `Get-NetTCPConnection` parses `ss -tnap` text output (ss does not support `--json` in all versions). State names are mapped from ss convention (e.g. `ESTAB` → `Established`, `TIME-WAIT` → `TimeWait`).
 - `Get-NetIPConfiguration` excludes the loopback interface by default; pass `-All` to include it.
 
+### DNS tools
+
+- `Resolve-DnsName` runs `dig +noall +answer +authority +additional +ttlid +comments` and parses the section output into typed objects. If `dig` is not available it emits a warning and returns nothing (does not throw).
+- `Clear-DnsClientCache` tries `resolvectl flush-caches` first, then falls back to `nscd --invalidate=hosts`. Fully `ShouldProcess`-aware.
+- `Get-DnsClientServerAddress` reads `nameserver` lines from `/etc/resolv.conf` as the global fallback and also queries `resolvectl status` to capture per-interface DNS server assignments.
+- `Get-DnsClientGlobalSetting` reads `search`/`domain` lines from `/etc/resolv.conf` and merges with `resolvectl status` global DNS Domain output.
+
 ---
 
 ## Version history
 
 | Version | Notes |
 |---|---|
+| 0.3.0 | DnsClient cmdlets merged in: `Resolve-DnsName`, `Clear-DnsClientCache`, `Get-DnsClientServerAddress`, `Get-DnsClientGlobalSetting` implemented; 17 DnsClient stubs added. Total: 55 cmdlets (8 implemented, 47 stubs). |
 | 0.2.0 | Linux-only guard added (throws on Windows). `#Requires -Version 7.2` added to `.psm1`. Tests rewritten for Pester 5.2+: `BeforeDiscovery`, conditional import, all Describe blocks skipped on non-Linux — 138/138 pass on WSL2, 138 skipped on Windows. |
 | 0.1.0 | Initial release. `Get-NetIPAddress`, `Get-NetIPConfiguration`, `Get-NetRoute`, `Get-NetTCPConnection` implemented. 30 stubs for remaining cmdlets. |
 

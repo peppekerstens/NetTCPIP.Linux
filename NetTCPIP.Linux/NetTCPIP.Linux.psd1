@@ -4,22 +4,27 @@
 
 @{
     RootModule        = 'NetTCPIP.Linux.psm1'
-    ModuleVersion     = '0.2.0'
+    ModuleVersion     = '0.3.0'
     GUID              = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
     Author            = 'Peppe Kerstens'
     CompanyName       = ''
     Copyright         = '(c) Peppe Kerstens. GPL-3.0 license.'
-    Description       = 'PowerShell module for Linux providing cmdlet parity with NetTCPIP. Implements Get-NetIPAddress, Get-NetRoute, Get-NetTCPConnection, Get-NetIPConfiguration using ip and ss.'
+    Description       = 'PowerShell module for Linux providing cmdlet parity with the Windows NetTCPIP and DnsClient modules. Implements Get-NetIPAddress, Get-NetRoute, Get-NetTCPConnection, Get-NetIPConfiguration, Resolve-DnsName, Clear-DnsClientCache, Get-DnsClientServerAddress, Get-DnsClientGlobalSetting using ip, ss, and dig/resolvectl.'
     PowerShellVersion = '7.2'
     RequiredModules   = @()
 
     FunctionsToExport = @(
-        # Fully implemented
+        # Fully implemented — NetTCPIP
         'Get-NetIPAddress',
         'Get-NetIPConfiguration',
         'Get-NetRoute',
         'Get-NetTCPConnection',
-        # Stubs
+        # Fully implemented — DnsClient
+        'Resolve-DnsName',
+        'Clear-DnsClientCache',
+        'Get-DnsClientServerAddress',
+        'Get-DnsClientGlobalSetting',
+        # Stubs — NetTCPIP
         'Find-NetRoute',
         'Get-NetCompartment',
         'Get-NetIPInterface',
@@ -49,7 +54,25 @@
         'Set-NetRoute',
         'Set-NetTCPSetting',
         'Set-NetUDPSetting',
-        'Test-NetConnection'
+        'Test-NetConnection',
+        # Stubs — DnsClient
+        'Add-DnsClientDohServerAddress',
+        'Add-DnsClientNrptRule',
+        'Get-DnsClient',
+        'Get-DnsClientCache',
+        'Get-DnsClientDohServerAddress',
+        'Get-DnsClientNrptGlobal',
+        'Get-DnsClientNrptPolicy',
+        'Get-DnsClientNrptRule',
+        'Register-DnsClient',
+        'Remove-DnsClientDohServerAddress',
+        'Remove-DnsClientNrptRule',
+        'Set-DnsClient',
+        'Set-DnsClientDohServerAddress',
+        'Set-DnsClientGlobalSetting',
+        'Set-DnsClientNrptGlobal',
+        'Set-DnsClientNrptRule',
+        'Set-DnsClientServerAddress'
     )
 
     CmdletsToExport   = @()
@@ -58,10 +81,12 @@
 
     PrivateData = @{
         PSData = @{
-            Tags         = @('Linux', 'Network', 'NetTCPIP', 'ip', 'ss', 'CrossPlatform')
+            Tags         = @('Linux', 'Network', 'NetTCPIP', 'DnsClient', 'DNS', 'ip', 'ss', 'dig', 'resolvectl', 'CrossPlatform')
             LicenseUri   = 'https://github.com/peppekerstens/NetTCPIP.Linux/blob/main/LICENSE'
             ProjectUri   = 'https://github.com/peppekerstens/NetTCPIP.Linux'
             ReleaseNotes = @'
+0.3.0 - DnsClient module cmdlets merged in. Resolve-DnsName (dig), Clear-DnsClientCache (resolvectl flush-caches), Get-DnsClientServerAddress (/etc/resolv.conf + resolvectl), Get-DnsClientGlobalSetting (search domains) implemented. 17 DnsClient stubs added (NRPT, DoH, Register-DnsClient, Set-* cmdlets).
+0.2.0 - Linux-only guard. #Requires -Version 7.2. Pester 5.2+ test rewrite.
 0.1.0 - Initial release. Get-NetIPAddress, Get-NetIPConfiguration, Get-NetRoute, Get-NetTCPConnection implemented. Stubs for remaining 30 cmdlets.
 '@
         }
