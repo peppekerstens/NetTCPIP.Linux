@@ -119,6 +119,44 @@ Legend: ✅ Implemented &nbsp;|&nbsp; ⚠️ Stub
 
 ---
 
+## How we built this
+
+### Why this module exists
+
+The Windows `NetTCPIP` module is the go-to for IP address inspection, routing, and TCP connection enumeration in PowerShell scripts. None of it works on Linux. `ip` and `ss` exist, but their output is raw text (or JSON in newer iproute2 versions) that you have to parse manually every time. The goal here was to make `Get-NetIPAddress` and friends Just Work on Linux so cross-platform scripts don't need platform branches.
+
+### Tool choices
+
+**`ip -json`** was the obvious choice for address and routing data. The `-json` flag has been in iproute2 since version 4.12 (2017), so it's safe to rely on for any modern Linux. It gives clean structured output — no text parsing, no regex. `Get-NetIPAddress`, `Get-NetRoute`, and `Get-NetIPConfiguration` all use this.
+
+**`ss`** is the modern replacement for `netstat`. The problem is that `ss --json` isn't universally available across distributions — some older Ubuntu LTS versions ship an `ss` that doesn't support it. So `Get-NetTCPConnection` parses `ss -tnap` text output instead, which is consistently available. The column layout is stable enough to parse safely.
+
+### Key gotchas
+
+**LISTEN sockets have a wildcard remote address.** When `ss` reports a listening socket, the remote address column is `0.0.0.0:*` or `[::]:*`. The `*` is not a valid port number, so any code that tries to extract a port via a "digits only" regex on that column will silently fail or crash. The fix is to detect the wildcard pattern and return `0` for the port rather than trying to parse it.
+
+**Loop variable shadowing.** During development of `Get-NetTCPConnection`, a pipeline loop used `$localPort` as the loop variable name — same as the `-LocalPort` parameter. Inside the loop, `$localPort` resolves to the current iteration value, silently overwriting the parameter. The filter then always matched (or never matched). Renamed the loop variables to `$_localPort` / `$_remotePort` to keep them distinct. Classic PowerShell footgun.
+
+**State name mapping.** `ss` uses its own state names: `ESTAB`, `TIME-WAIT`, `CLOSE-WAIT`, `SYN-SENT`, etc. Windows uses `Established`, `TimeWait`, `CloseWait`, `SynSent`. A lookup table maps between them. Without this, `-State Established` would never match anything.
+
+**`Get-NetRoute` needs two calls.** `ip -json route show` only returns IPv4 routes. IPv6 routes require `ip -6 -json route show`. Both are called and the results merged. The `default` route entry has no destination prefix — it's mapped to `0.0.0.0/0` for IPv4 and `::/0` for IPv6 to match Windows behavior.
+
+**`-Filter -Exclude` trap.** Early drafts of the module used `-Filter` on `Where-Object` inside the `.psm1`. This silently does nothing on Linux (filter provider semantics differ). Replaced with explicit `Where-Object { ... }` pipeline filtering throughout.
+
+### Naming and stub strategy
+
+The Windows `NetTCPIP` module exports 34 cmdlets. We implement 4 — the ones that cover 90%+ of real-world usage. The remaining 30 are stubs: they export the correct function name, emit a `Write-Warning` saying "not yet implemented on Linux", and return nothing. This keeps the module's exported surface consistent with Windows so `Get-Command -Module NetTCPIP` returns the expected list without errors.
+
+All 4 implemented cmdlets keep the original Windows names (no renaming needed — `NetTCPIP` is already platform-neutral in naming). The stubs carry comments marking which Linux tool would be the natural implementation path (`ip link` for `Get-NetIPInterface`, `ip neigh` for `Get-NetNeighbor`, etc.).
+
+### Test approach
+
+Tests live in `Tests\NetTCPIP.Linux.Tests.ps1` and use Pester 5.2+. The test file includes `#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.2.0' }` and a `BeforeDiscovery` block that detects whether the current platform is Linux. On Windows, all `Describe` blocks get `-Skip` applied — 138 tests skip cleanly rather than error.
+
+On WSL2 the full 138 tests pass. Tests cover parameter filtering (AddressFamily, InterfaceAlias, State, LocalPort, RemotePort, OwningProcess), state name mapping, and the wildcard remote address edge case for LISTEN sockets.
+
+---
+
 ## License
 
 GPL-3.0 — see [LICENSE](LICENSE).
