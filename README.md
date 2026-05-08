@@ -17,6 +17,7 @@ On **Windows**, every function delegates transparently to the built-in `NetTCPIP
 ## Requirements
 
 - PowerShell 7.2+
+- **Linux only** — the module refuses to load on Windows (throws a descriptive error)
 - Linux with `iproute2` (`ip`, `ss`) — installed by default on Ubuntu 24.04
 
 ---
@@ -113,6 +114,7 @@ Legend: ✅ Implemented &nbsp;|&nbsp; ⚠️ Stub
 
 | Version | Notes |
 |---|---|
+| 0.2.0 | Linux-only guard added (throws on Windows). `#Requires -Version 7.2` added to `.psm1`. Tests rewritten for Pester 5.2+: `BeforeDiscovery`, conditional import, all Describe blocks skipped on non-Linux — 138/138 pass on WSL2, 138 skipped on Windows. |
 | 0.1.0 | Initial release. `Get-NetIPAddress`, `Get-NetIPConfiguration`, `Get-NetRoute`, `Get-NetTCPConnection` implemented. 30 stubs for remaining cmdlets. |
 
 ---
