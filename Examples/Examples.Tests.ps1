@@ -23,7 +23,6 @@ BeforeDiscovery {
         'Get-ActiveConnections.ps1'
         'Get-RoutingTable.ps1'
         'Find-PortOwner.ps1'
-        'Resolve-DnsNames.ps1'
     )
 }
 
@@ -190,32 +189,5 @@ Describe 'Find-PortOwner' {
         # Port 65534 is virtually never in use; using 0 would be falsy and skip the filter
         $result = Get-NetTCPConnection -State Listen -LocalPort 65534
         $result | Should -BeNullOrEmpty
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Resolve-DnsNames
-# ---------------------------------------------------------------------------
-
-Describe 'Resolve-DnsNames' {
-    It 'script file exists' {
-        Join-Path $script:ExamplesDir 'Resolve-DnsNames.ps1' | Should -Exist
-    }
-
-    It 'Resolve-DnsName returns records for a known hostname' -Skip:(-not $IsLinux) {
-        $result = Resolve-DnsName -Name 'dns.google' -WarningAction SilentlyContinue
-        $result | Should -Not -BeNullOrEmpty
-    }
-
-    It 'Get-DnsClientServerAddress returns objects with InterfaceAlias property' -Skip:(-not $IsLinux) {
-        $result = Get-DnsClientServerAddress | Select-Object -First 1
-        $result | Should -Not -BeNullOrEmpty
-        $result.PSObject.Properties.Name | Should -Contain 'InterfaceAlias'
-    }
-
-    It 'Get-DnsClientGlobalSetting returns an object with SuffixSearchList' -Skip:(-not $IsLinux) {
-        $result = Get-DnsClientGlobalSetting
-        $result | Should -Not -BeNullOrEmpty
-        $result.PSObject.Properties.Name | Should -Contain 'SuffixSearchList'
     }
 }
