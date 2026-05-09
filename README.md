@@ -1,5 +1,7 @@
 # NetTCPIP.Linux
 
+[![Pester Tests](https://github.com/peppekerstens/NetTCPIP.Linux/actions/workflows/pester.yml/badge.svg)](https://github.com/peppekerstens/NetTCPIP.Linux/actions/workflows/pester.yml)
+
 PowerShell 7.x module providing cmdlet parity with the Windows `NetTCPIP` module on Linux. Wraps native Linux networking tools (`ip`, `ss`) to deliver a familiar PowerShell experience for IP address, routing, and TCP connection management.
 
 For DNS cmdlets (`Resolve-DnsName`, `Clear-DnsClientCache`, etc.), see the companion module **[DnsClient.Linux](https://github.com/peppekerstens/DnsClient.Linux)**.
@@ -10,7 +12,7 @@ Part of the **Linux PowerShell Cmdlet Parity** project — inspired by Evgenij S
 
 ## What it does
 
-On **Linux**, wraps `ip` and `ss` to provide PowerShell cmdlets matching the Windows `NetTCPIP` module API as closely as possible. All 34 cmdlets that the Windows module exports are present — 4 are fully implemented, the remaining 30 are stubs that emit a warning on Linux.
+On **Linux**, wraps `ip`, `ss`, `ping`, and `nc` to provide PowerShell cmdlets matching the Windows `NetTCPIP` module API as closely as possible. All 34 cmdlets that the Windows module exports are present — 10 are fully implemented, the remaining 24 are stubs that emit a warning on Linux.
 
 On **Windows**, the module refuses to load — use the built-in `NetTCPIP` module.
 
@@ -20,7 +22,7 @@ On **Windows**, the module refuses to load — use the built-in `NetTCPIP` modul
 
 - PowerShell 7.2+
 - **Linux only** — the module refuses to load on Windows (throws a descriptive error)
-- Linux with `iproute2` (`ip`, `ss`) — installed by default on Ubuntu 24.04
+- Linux with `iproute2` (`ip`, `ss`), `iputils-ping` (`ping`), and `netcat` (`nc`) — installed by default on most distros
 
 ---
 
@@ -70,12 +72,12 @@ Legend: ✅ Implemented &nbsp;|&nbsp; ⚠️ Stub
 | `Get-NetIPConfiguration` | ✅ | `ip -json addr` + `ip -json route` | Per-interface summary: IPv4Address, IPv4DefaultGateway, IPv6Address; loopback excluded by default (`-All` to include) |
 | `Get-NetRoute` | ✅ | `ip -json route show` (IPv4 + IPv6) | DestinationPrefix, NextHop, InterfaceAlias, AddressFamily, RouteMetric; `default` mapped to `0.0.0.0/0` / `::/0` |
 | `Get-NetTCPConnection` | ✅ | `ss -tnap` | LocalAddress, LocalPort, RemoteAddress, RemotePort, State, OwningProcess; ss state names mapped to Windows names; `-State`, `-LocalPort`, `-RemotePort`, `-OwningProcess` filters |
-| `Find-NetRoute` | ⚠️ | Stub | Future: `ip route get` |
+| `Find-NetRoute` | ✅ | `ip route get` | DestinationPrefix, NextHop, InterfaceAlias; wraps `ip route get <dst>` |
 | `Get-NetCompartment` | ⚠️ | Stub | |
-| `Get-NetIPInterface` | ⚠️ | Stub | Future: `ip link` |
-| `Get-NetIPv4Protocol` | ⚠️ | Stub | Future: `sysctl` |
-| `Get-NetIPv6Protocol` | ⚠️ | Stub | Future: `sysctl` |
-| `Get-NetNeighbor` | ⚠️ | Stub | Future: `ip neigh` |
+| `Get-NetIPInterface` | ✅ | `ip -json link show` | InterfaceAlias, InterfaceIndex, NlMtu, AdminState, OperationalStatus |
+| `Get-NetIPv4Protocol` | ✅ | `sysctl net.ipv4.*` | Forwarding, DefaultTTL, NeighborCacheLimitEntries |
+| `Get-NetIPv6Protocol` | ✅ | `sysctl net.ipv6.*` | Forwarding, DefaultHopLimit |
+| `Get-NetNeighbor` | ✅ | `ip neigh show` | IPAddress, InterfaceAlias, LinkLayerAddress, State |
 | `Get-NetOffloadGlobalSetting` | ⚠️ | Stub | |
 | `Get-NetPrefixPolicy` | ⚠️ | Stub | |
 | `Get-NetTCPSetting` | ⚠️ | Stub | Future: `sysctl net.ipv4.tcp_*` |
@@ -99,7 +101,7 @@ Legend: ✅ Implemented &nbsp;|&nbsp; ⚠️ Stub
 | `Set-NetRoute` | ⚠️ | Stub | |
 | `Set-NetTCPSetting` | ⚠️ | Stub | |
 | `Set-NetUDPSetting` | ⚠️ | Stub | |
-| `Test-NetConnection` | ⚠️ | Stub | Future: `ping` / `nc` |
+| `Test-NetConnection` | ✅ | `ping` + `nc` | ComputerName, PingSucceeded, TcpTestSucceeded; `-Port`, `-InformationLevel Quiet/Detailed` |
 
 ---
 
@@ -152,10 +154,33 @@ The Windows `NetTCPIP` module is the go-to for IP address inspection, routing, a
 
 ---
 
+## CI / Testing
+
+Tested across 5 Linux distributions in containers (**141 pass, 0 fail, 0 skip** on last full run):
+
+| Distro | Image |
+|---|---|
+| Ubuntu 24.04 | `ghcr.io/peppekerstens/testinfra:ubuntu-24.04` |
+| Debian 12 | `ghcr.io/peppekerstens/testinfra:debian-12` |
+| Fedora 40 | `ghcr.io/peppekerstens/testinfra:fedora-40` |
+| openSUSE Tumbleweed | `ghcr.io/peppekerstens/testinfra:opensuse-tumbleweed` |
+| Arch Linux | `ghcr.io/peppekerstens/testinfra:arch-latest` |
+
+Run locally with:
+
+```powershell
+# From the repo root
+docker compose -f docker-compose.test.yml up --abort-on-container-exit
+```
+
+GitHub Actions runs the same matrix on every push — see `.github/workflows/pester.yml`.
+---
+
 ## Version history
 
 | Version | Notes |
 |---|---|
+| 0.5.0 | Stage 3: `Find-NetRoute`, `Get-NetIPInterface`, `Get-NetIPv4Protocol`, `Get-NetIPv6Protocol`, `Get-NetNeighbor`, `Test-NetConnection` implemented. 10 implemented, 24 stubs. Multi-distro GHA + docker-compose. |
 | 0.4.0 | DnsClient cmdlets extracted to separate [DnsClient.Linux](https://github.com/peppekerstens/DnsClient.Linux) module. NetTCPIP.Linux reverts to NetTCPIP-only surface: 4 implemented, 30 stubs. |
 | 0.3.0 | DnsClient cmdlets temporarily merged in (now reverted to DnsClient.Linux). |
 | 0.2.0 | Linux-only guard. `#Requires -Version 7.2`. Pester 5.2+ test rewrite. |
