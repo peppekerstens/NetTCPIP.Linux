@@ -28,15 +28,14 @@ BeforeDiscovery {
     )
 
     $script:StubFunctions = @(
-        'Find-NetRoute', 'Get-NetCompartment', 'Get-NetIPInterface',
-        'Get-NetIPv4Protocol', 'Get-NetIPv6Protocol', 'Get-NetNeighbor',
+        'Get-NetCompartment',
         'Get-NetOffloadGlobalSetting', 'Get-NetPrefixPolicy', 'Get-NetTCPSetting',
         'Get-NetTransportFilter', 'Get-NetUDPEndpoint', 'Get-NetUDPSetting',
         'New-NetIPAddress', 'New-NetNeighbor', 'New-NetRoute', 'New-NetTransportFilter',
         'Remove-NetIPAddress', 'Remove-NetNeighbor', 'Remove-NetRoute', 'Remove-NetTransportFilter',
         'Set-NetIPAddress', 'Set-NetIPInterface', 'Set-NetIPv4Protocol', 'Set-NetIPv6Protocol',
         'Set-NetNeighbor', 'Set-NetOffloadGlobalSetting', 'Set-NetRoute', 'Set-NetTCPSetting',
-        'Set-NetUDPSetting', 'Test-NetConnection'
+        'Set-NetUDPSetting'
     )
 }
 
@@ -178,5 +177,151 @@ Describe 'Stub functions' -Skip:(-not $script:OnLinux) {
     It "'<Name>' emits a not-implemented warning" -ForEach ($script:StubFunctions | ForEach-Object { @{ Name = $_ } }) {
         & $Name -WarningVariable w -WarningAction SilentlyContinue
         $w | Should -Not -BeNullOrEmpty
+    }
+}
+
+# ---------------------------------------------------------------------------
+Describe 'Find-NetRoute' -Skip:(-not $script:OnLinux) {
+
+    It 'returns a result without error' {
+        { Find-NetRoute -RemoteIPAddress '8.8.8.8' } | Should -Not -Throw
+    }
+
+    It 'returns an object with required properties' {
+        $result = Find-NetRoute -RemoteIPAddress '8.8.8.8'
+        $result | Should -Not -BeNullOrEmpty
+        $result.PSObject.Properties.Name | Should -Contain 'DestinationPrefix'
+        $result.PSObject.Properties.Name | Should -Contain 'NextHop'
+        $result.PSObject.Properties.Name | Should -Contain 'InterfaceAlias'
+        $result.PSObject.Properties.Name | Should -Contain 'SourceAddress'
+    }
+
+    It 'SourceAddress is a valid IP' {
+        $result = Find-NetRoute -RemoteIPAddress '8.8.8.8'
+        $result.SourceAddress | Should -Match '^\d+\.\d+\.\d+\.\d+$'
+    }
+}
+
+# ---------------------------------------------------------------------------
+Describe 'Get-NetIPInterface' -Skip:(-not $script:OnLinux) {
+
+    It 'returns results without error' {
+        { Get-NetIPInterface } | Should -Not -Throw
+    }
+
+    It 'returns objects with required properties' {
+        $result = Get-NetIPInterface | Select-Object -First 1
+        $result | Should -Not -BeNullOrEmpty
+        $result.PSObject.Properties.Name | Should -Contain 'InterfaceAlias'
+        $result.PSObject.Properties.Name | Should -Contain 'InterfaceIndex'
+        $result.PSObject.Properties.Name | Should -Contain 'AddressFamily'
+        $result.PSObject.Properties.Name | Should -Contain 'NlMtu'
+    }
+
+    It 'returns IPv4 and IPv6 entries for each interface' {
+        $results = Get-NetIPInterface
+        $results | Where-Object AddressFamily -eq 'IPv4' | Should -Not -BeNullOrEmpty
+        $results | Where-Object AddressFamily -eq 'IPv6' | Should -Not -BeNullOrEmpty
+    }
+
+    It 'filters by AddressFamily IPv4' {
+        $results = Get-NetIPInterface -AddressFamily IPv4
+        $results | ForEach-Object { $_.AddressFamily | Should -Be 'IPv4' }
+    }
+
+    It 'filters by InterfaceAlias' {
+        $alias = (Get-NetIPInterface | Select-Object -First 1).InterfaceAlias
+        $results = Get-NetIPInterface -InterfaceAlias $alias
+        $results | Should -Not -BeNullOrEmpty
+        $results | ForEach-Object { $_.InterfaceAlias | Should -Be $alias }
+    }
+}
+
+# ---------------------------------------------------------------------------
+Describe 'Get-NetNeighbor' -Skip:(-not $script:OnLinux) {
+
+    It 'returns results without error' {
+        { Get-NetNeighbor } | Should -Not -Throw
+    }
+
+    It 'returns objects with required properties' {
+        $result = Get-NetNeighbor | Select-Object -First 1
+        if ($result) {
+            $result.PSObject.Properties.Name | Should -Contain 'IPAddress'
+            $result.PSObject.Properties.Name | Should -Contain 'InterfaceAlias'
+            $result.PSObject.Properties.Name | Should -Contain 'LinkLayerAddress'
+            $result.PSObject.Properties.Name | Should -Contain 'State'
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+Describe 'Test-NetConnection' -Skip:(-not $script:OnLinux) {
+
+    It 'returns a result without error' {
+        { Test-NetConnection -ComputerName '8.8.8.8' } | Should -Not -Throw
+    }
+
+    It 'returns an object with required properties' {
+        $result = Test-NetConnection -ComputerName '8.8.8.8'
+        $result.PSObject.Properties.Name | Should -Contain 'ComputerName'
+        $result.PSObject.Properties.Name | Should -Contain 'PingSucceeded'
+        $result.PSObject.Properties.Name | Should -Contain 'TcpTestSucceeded'
+    }
+
+    It 'ping succeeds for 8.8.8.8' {
+        $result = Test-NetConnection -ComputerName '8.8.8.8'
+        $result.PingSucceeded | Should -Be $true
+    }
+
+    It 'TCP port test succeeds for 8.8.8.8:443' {
+        $result = Test-NetConnection -ComputerName '8.8.8.8' -Port 443
+        $result.TcpTestSucceeded | Should -Be $true
+    }
+
+    It 'returns boolean true with -InformationLevel Quiet and ping succeeds' {
+        $result = Test-NetConnection -ComputerName '8.8.8.8' -InformationLevel Quiet
+        $result | Should -Be $true
+    }
+}
+
+# ---------------------------------------------------------------------------
+Describe 'Get-NetIPv4Protocol' -Skip:(-not $script:OnLinux) {
+
+    It 'returns a result without error' {
+        { Get-NetIPv4Protocol } | Should -Not -Throw
+    }
+
+    It 'returns an object with required properties' {
+        $result = Get-NetIPv4Protocol
+        $result | Should -Not -BeNullOrEmpty
+        $result.PSObject.Properties.Name | Should -Contain 'DefaultHopLimit'
+        $result.PSObject.Properties.Name | Should -Contain 'Forwarding'
+    }
+
+    It 'Forwarding is Enabled or Disabled' {
+        $result = Get-NetIPv4Protocol
+        $result.Forwarding | Should -BeIn @('Enabled', 'Disabled')
+    }
+}
+
+# ---------------------------------------------------------------------------
+Describe 'Get-NetIPv6Protocol' -Skip:(-not $script:OnLinux) {
+
+    It 'returns a result without error' {
+        { Get-NetIPv6Protocol } | Should -Not -Throw
+    }
+
+    It 'returns an object with required properties' {
+        $result = Get-NetIPv6Protocol
+        $result | Should -Not -BeNullOrEmpty
+        $result.PSObject.Properties.Name | Should -Contain 'DefaultHopLimit'
+        $result.PSObject.Properties.Name | Should -Contain 'Forwarding'
+        $result.PSObject.Properties.Name | Should -Contain 'Disabled'
+    }
+
+    It 'Forwarding is Enabled or Disabled' {
+        $result = Get-NetIPv6Protocol
+        $result.Forwarding | Should -BeIn @('Enabled', 'Disabled')
     }
 }
