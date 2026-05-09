@@ -191,3 +191,43 @@ Describe 'Find-PortOwner' {
         $result | Should -BeNullOrEmpty
     }
 }
+
+Describe 'Scenario: Network interface audit' -Skip:(-not $IsLinux) {
+    BeforeAll {
+        $modulePath = Join-Path (Split-Path $PSScriptRoot -Parent) 'NetTCPIP.Linux' 'NetTCPIP.Linux.psd1'
+        Import-Module $modulePath -Force -ErrorAction Stop
+    }
+    AfterAll {
+        Remove-Module 'NetTCPIP.Linux' -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'Get-NetIPAddress returns at least the loopback address' {
+        $addrs = Get-NetIPAddress
+        $addrs | Should -Not -BeNullOrEmpty
+        $addrs.IPAddress | Should -Contain '127.0.0.1'
+    }
+    It 'Get-NetRoute returns at least one route' {
+        $routes = Get-NetRoute
+        $routes | Should -Not -BeNullOrEmpty
+    }
+    It 'Find-NetRoute returns a route object for loopback' {
+        $route = Find-NetRoute -RemoteIPAddress '127.0.0.1'
+        $route | Should -Not -BeNullOrEmpty
+    }
+    It 'Get-NetIPInterface returns interfaces with InterfaceIndex' {
+        $ifaces = Get-NetIPInterface
+        $ifaces | Should -Not -BeNullOrEmpty
+        $ifaces[0].PSObject.Properties.Name | Should -Contain 'InterfaceIndex'
+    }
+    It 'Get-NetNeighbor returns results or empty array (no error)' {
+        { Get-NetNeighbor } | Should -Not -Throw
+    }
+    It 'Test-NetConnection to loopback succeeds' {
+        $result = Test-NetConnection -ComputerName '127.0.0.1'
+        $result.PingSucceeded | Should -Be $true
+    }
+    It 'Get-NetIPv4Protocol returns sysctl network settings' {
+        $proto = Get-NetIPv4Protocol
+        $proto | Should -Not -BeNullOrEmpty
+    }
+}
