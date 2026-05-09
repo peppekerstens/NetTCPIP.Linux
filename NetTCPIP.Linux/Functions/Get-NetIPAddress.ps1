@@ -32,7 +32,7 @@ function Get-NetIPAddress {
     )
 
     if ($IsLinux) {
-        $raw = ip -json addr show 2>/dev/null | ConvertFrom-Json
+        $raw = Get-IpAddr
 
         $results = foreach ($iface in $raw) {
             foreach ($addrInfo in $iface.addr_info) {

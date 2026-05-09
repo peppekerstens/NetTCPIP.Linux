@@ -1,0 +1,79 @@
+{
+    "$schema": "https://aka.ms/PowerShell/Crescendo/Schemas/2022-06",
+    "commands": [
+        {
+            "Verb": "Get",
+            "Noun": "IpAddr",
+            "OriginalName": "ip",
+            "OriginalCommandElements": ["-json", "addr", "show"],
+            "Platform": ["Linux"],
+            "SupportsShouldProcess": false,
+            "Parameters": [],
+            "OutputHandlers": [
+                {
+                    "ParameterSetName": "Default",
+                    "HandlerType": "Inline",
+                    "Handler": "$args[0] | ConvertFrom-Json",
+                    "OutputType": "System.Management.Automation.PSObject[]",
+                    "OutputTypeDescription": "Array of network interface objects with addr_info."
+                }
+            ],
+            "Description": "Returns JSON output of 'ip addr show' — all network interfaces with their IP address info.",
+            "Usage": { "Synopsis": "Gets IP address information for all network interfaces." }
+        },
+        {
+            "Verb": "Get",
+            "Noun": "IpRoute",
+            "OriginalName": "ip",
+            "OriginalCommandElements": ["-json", "route", "show"],
+            "Platform": ["Linux"],
+            "SupportsShouldProcess": false,
+            "Parameters": [
+                {
+                    "Name": "IPv6",
+                    "OriginalName": "-6",
+                    "ParameterType": "switch",
+                    "ApplyToExecutable": true
+                }
+            ],
+            "OutputHandlers": [
+                {
+                    "ParameterSetName": "Default",
+                    "HandlerType": "Inline",
+                    "Handler": "$args[0] | ConvertFrom-Json",
+                    "OutputType": "System.Management.Automation.PSObject[]",
+                    "OutputTypeDescription": "Array of route objects."
+                }
+            ],
+            "Description": "Returns JSON output of 'ip route show' or 'ip -6 route show'.",
+            "Usage": { "Synopsis": "Gets IP routing table entries." }
+        },
+        {
+            "Verb": "Get",
+            "Noun": "IpLink",
+            "OriginalName": "ip",
+            "OriginalCommandElements": ["-json", "link", "show"],
+            "Platform": ["Linux"],
+            "SupportsShouldProcess": false,
+            "Parameters": [
+                {
+                    "Name": "Statistics",
+                    "OriginalName": "-s",
+                    "ParameterType": "switch",
+                    "ApplyToExecutable": true
+                }
+            ],
+            "OutputHandlers": [
+                {
+                    "ParameterSetName": "Default",
+                    "HandlerType": "Inline",
+                    "Handler": "$args[0] | ConvertFrom-Json",
+                    "OutputType": "System.Management.Automation.PSObject[]",
+                    "OutputTypeDescription": "Array of network link objects."
+                }
+            ],
+            "Description": "Returns JSON output of 'ip link show' — network interface link-layer info.",
+            "Usage": { "Synopsis": "Gets network link information for all interfaces." }
+        }
+    ]
+}

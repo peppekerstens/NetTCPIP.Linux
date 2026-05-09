@@ -19,8 +19,8 @@ function Get-NetIPConfiguration {
     )
 
     if ($IsLinux) {
-        $addrData  = ip -json addr show 2>/dev/null | ConvertFrom-Json
-        $routeData = ip -json route show 2>/dev/null | ConvertFrom-Json
+        $addrData  = Get-IpAddr
+        $routeData = Get-IpRoute
 
         # Default gateway
         $defaultGw = ($routeData | Where-Object { $_.dst -eq 'default' } | Select-Object -First 1).gateway

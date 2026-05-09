@@ -106,9 +106,25 @@ Legend: ✅ Implemented &nbsp;|&nbsp; ⚠️ Stub
 ## Implementation notes
 
 - `ip -json addr show` and `ip -json route show` are used for structured output — no text parsing required.
-- `Get-NetRoute` calls `ip -json route show` for IPv4 and `ip -6 -json route show` for IPv6; both sets are merged into a single result stream.
+- `Get-NetRoute` calls `Get-IpRoute` for IPv4 and `Get-IpRoute -IPv6` for IPv6; both sets are merged into a single result stream. A `Get-IpLink` call builds a one-shot interface index lookup map, eliminating the previous per-route `ip link show` call that ran once per route entry.
 - `Get-NetTCPConnection` parses `ss -tnap` text output (ss does not support `--json` in all versions). State names are mapped from ss convention (e.g. `ESTAB` → `Established`, `TIME-WAIT` → `TimeWait`).
 - `Get-NetIPConfiguration` excludes the loopback interface by default; pass `-All` to include it.
+
+### Implementation Approach (Stage 2 — Crescendo audit)
+
+**Decision: Migrate `ip` calls to a private Crescendo-backed wrapper module.**
+
+`ip` supports `--json` / `-json` for `addr show`, `route show`, and `link show`. All three subcommands were previously called inline in individual cmdlets with duplicated invocation and JSON parsing. A private module at `Crescendo/ip.psm1` (backed by `Crescendo/ip.crescendo.json`) now centralises all three:
+
+| Helper | Wraps | Used by |
+|---|---|---|
+| `Get-IpAddr` | `ip -json addr show` | `Get-NetIPAddress`, `Get-NetIPConfiguration` |
+| `Get-IpRoute` | `ip [-6] -json route show` | `Get-NetRoute`, `Get-NetIPConfiguration` |
+| `Get-IpLink` | `ip [-s] -json link show` | `Get-NetRoute` (index map) |
+
+The `ss` command (`Get-NetTCPConnection`) has no JSON mode — it remains custom text parsing.
+
+`Crescendo/ip.psm1` is loaded as a nested module in `NetTCPIP.Linux.psm1` and is **not** exported.
 
 ---
 

@@ -18,3 +18,10 @@ if (-not $IsLinux) {
 Get-ChildItem -Path "$PSScriptRoot\Functions" -Filter '*.ps1' |
     Where-Object { $_.Name -notlike '*.Tests.ps1' } |
     ForEach-Object { . $_.FullName }
+
+# Load private ip wrapper as a nested module (not exported)
+# Crescendo configuration: Crescendo/ip.crescendo.json
+$ipModulePath = Join-Path $PSScriptRoot 'Crescendo' 'ip.psm1'
+if (Test-Path $ipModulePath) {
+    Import-Module $ipModulePath -Force -ErrorAction SilentlyContinue
+}

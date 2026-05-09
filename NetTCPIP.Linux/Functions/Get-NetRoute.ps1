@@ -29,15 +29,21 @@ function Get-NetRoute {
     if ($IsLinux) {
         $results = @()
 
+        # Build interface index lookup once (avoids one ip call per route)
+        $linkMap = @{}
+        foreach ($link in (Get-IpLink)) {
+            $linkMap[$link.ifname] = $link.ifindex
+        }
+
         # IPv4
-        $raw4 = ip -json route show 2>/dev/null | ConvertFrom-Json
+        $raw4 = Get-IpRoute
         foreach ($r in $raw4) {
             $dest = if ($r.dst -eq 'default') { '0.0.0.0/0' } else { $r.dst }
             $results += [PSCustomObject]@{
                 DestinationPrefix = $dest
                 NextHop           = if ($r.gateway) { $r.gateway } else { '0.0.0.0' }
                 InterfaceAlias    = $r.dev
-                InterfaceIndex    = (ip -json link show $r.dev 2>/dev/null | ConvertFrom-Json | Select-Object -First 1).ifindex
+                InterfaceIndex    = if ($linkMap.ContainsKey($r.dev)) { $linkMap[$r.dev] } else { 0 }
                 AddressFamily     = 'IPv4'
                 RouteMetric       = if ($r.metric) { [int]$r.metric } else { 0 }
                 TypeOfNextHop     = if ($r.gateway) { 'Remote' } else { 'Connected' }
@@ -48,14 +54,14 @@ function Get-NetRoute {
         }
 
         # IPv6
-        $raw6 = ip -6 -json route show 2>/dev/null | ConvertFrom-Json
+        $raw6 = Get-IpRoute -IPv6
         foreach ($r in $raw6) {
             $dest = if ($r.dst -eq 'default') { '::/0' } else { $r.dst }
             $results += [PSCustomObject]@{
                 DestinationPrefix = $dest
                 NextHop           = if ($r.gateway) { $r.gateway } else { '::' }
                 InterfaceAlias    = $r.dev
-                InterfaceIndex    = (ip -json link show $r.dev 2>/dev/null | ConvertFrom-Json | Select-Object -First 1).ifindex
+                InterfaceIndex    = if ($linkMap.ContainsKey($r.dev)) { $linkMap[$r.dev] } else { 0 }
                 AddressFamily     = 'IPv6'
                 RouteMetric       = if ($r.metric) { [int]$r.metric } else { 0 }
                 TypeOfNextHop     = if ($r.gateway) { 'Remote' } else { 'Connected' }
